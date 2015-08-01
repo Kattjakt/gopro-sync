@@ -1,38 +1,51 @@
 var request = require('request');
+var http = require('http');
 var colors = require('colors');
-var spinner = require('cli-spinner');
 var cheerio = require('cheerio');
 var fs = require('fs');
-var http = require('http');
-var wait = require('wait.for');
 var async = require('async');
-var cliArgs = require("command-line-args");
+var cliargs = require("command-line-args");
+var statusbar = require('status-bar');
 
-//var spinner = new spinner.Spinner('%s');
-
-var cli = cliArgs([
+var cli = cliargs([
     { name: "ip", type: String, alias: "ip", description: "Choose a custom device IP" },
     { name: "directory", type: String, alias: "d", description: "Output directory for synced media" }
 ]);
 
-
 var Gopro = function() {
   var args = cli.parse();
   this.options = {
-    path: args.directory  || 'out/',
-    ip:   args.ip         || 'http://10.5.5.9',
+    path: args.directory || 'out/',
+    ip:   args.ip        || 'http://10.5.5.9',
     allowedFiles: ['JPG', 'MP4']
   };
 };
 
 Gopro.prototype.fetch = function(filename, callback) {
   var file = fs.createWriteStream(this.options.path + filename);
-  var request = http.get("http://10.5.5.9/videos/DCIM/100GOPRO/" + filename, function(response) {
+  var request = http.get(this.options.ip + '/videos/DCIM/100GOPRO/' + filename, function(response) {
+      var bar = statusbar.create({
+        total: response.headers['content-length']
+      }).on('render', function(stats) {
+        process.stdout.write(
+            filename.yellow + '  ' +
+            this.format.storage(stats.currentSize) + ' ' +
+            this.format.speed(stats.speed) + ' ' +
+            this.format.time(stats.elapsedTime) + ' ' +
+            this.format.time(stats.remainingTime) + ' [' +
+            this.format.progressBar(stats.percentage) + '] ' +
+            this.format.percentage(stats.percentage));
+        process.stdout.cursorTo(0);
+      });
+
+      response.pipe(bar);
       response.pipe(file);
-      console.log('downloaded: ' + filename);
       file.on('finish', function() {
           callback();
       });
+  }).on('error', function(error) {
+    if (bar) bar.cancel();
+    console.log(error);
   });
 };
 
@@ -40,7 +53,7 @@ Gopro.prototype.fetch = function(filename, callback) {
 Gopro.prototype.sync = function() {
     var self = this;
 
-    // ...
+    // Create our output directory if it doesn't already exist
     console.log('output directory set to: ' + self.options.path.yellow);
     if (!fs.existsSync(self.options.path)) {
       fs.mkdirSync(self.options.path);
@@ -52,7 +65,7 @@ Gopro.prototype.sync = function() {
         return console.error(error.message);
       }
 
-      // ...
+      //
       var html = cheerio.load(body)('a.link[href]');
       var filenames = [];
       html.each(function(i) {
