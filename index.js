@@ -4,8 +4,25 @@ var cheerio   = require('cheerio');
 var cliargs   = require("command-line-args");
 var colors    = require('colors');
 var async     = require('async');
+var death     = require('death');
 var http      = require('http');
 var fs        = require('fs');
+
+
+var api = {
+  _pre : '/gp/gpControl/',
+  Shutdown: 'command/system/sleep',
+  'Primary Modes' : {
+    Video :     'command/mode?p=0',
+    Photo :     'command/mode?p=1',
+    MultiShot : 'command/mode?p=2'
+  },
+  'Shutter' : {
+    Start:      'commands/shutter?p=1',
+    Stop:       'commands/shutter?p=0'
+  }
+
+};
 
 var cli = cliargs([
     { name: "ip", type: String, alias: "ip", description: "Choose a custom device IP" },
@@ -22,8 +39,10 @@ var Gopro = function() {
 };
 
 Gopro.prototype.fetch = function(filename, callback) {
+  var self = this;
   var file = fs.createWriteStream(this.options.path + filename);
-  var request = http.get(this.options.ip + '/videos/DCIM/100GOPRO/' + filename, function(response) {
+
+  http.get(self.options.ip + '/videos/DCIM/100GOPRO/' + filename, function(response) {
       var bar = statusbar.create({
         total: response.headers['content-length']
       }).on('render', function(stats) {
@@ -35,16 +54,24 @@ Gopro.prototype.fetch = function(filename, callback) {
             this.format.time(stats.remainingTime) + ' [' +
             this.format.progressBar(stats.percentage) + '] ' +
             this.format.percentage(stats.percentage));
-        process.stdout.cursorTo(0);
+            process.stdout.cursorTo(0);
+      });
+
+      death(function(signall, err){
+        fs.unlink(self.options.path + filename);
+        throw new Error('download was interrupted');
       });
 
       response.pipe(bar);
       response.pipe(file);
       file.on('finish', function() {
           callback();
+          console.log();
       });
+
   }).on('error', function(error) {
     if (bar) bar.cancel();
+    fs.unlink(self.options.path + filename);
     console.log(error);
   });
 };
@@ -81,7 +108,8 @@ Gopro.prototype.sync = function() {
           next();
         }
       }, function() {
-        console.log("FINISHED".blue);
+        console.log("Finished!".blue);
+        return;
       });
     });
   };
