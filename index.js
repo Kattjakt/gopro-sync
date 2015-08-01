@@ -1,11 +1,11 @@
-var request = require('request');
-var http = require('http');
-var colors = require('colors');
-var cheerio = require('cheerio');
-var fs = require('fs');
-var async = require('async');
-var cliargs = require("command-line-args");
 var statusbar = require('status-bar');
+var request   = require('request');
+var cheerio   = require('cheerio');
+var cliargs   = require("command-line-args");
+var colors    = require('colors');
+var async     = require('async');
+var http      = require('http');
+var fs        = require('fs');
 
 var cli = cliargs([
     { name: "ip", type: String, alias: "ip", description: "Choose a custom device IP" },
