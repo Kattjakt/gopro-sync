@@ -8,9 +8,8 @@ var death     = require('death');
 var http      = require('http');
 var fs        = require('fs');
 
-
 var api = {
-  _pre : '/gp/gpControl/',
+  pre : '/gp/gpControl/',
   Shutdown: 'command/system/sleep',
   'Primary Modes' : {
     Video :     'command/mode?p=0',
@@ -20,8 +19,10 @@ var api = {
   'Shutter' : {
     Start:      'commands/shutter?p=1',
     Stop:       'commands/shutter?p=0'
+  },
+  'Other' : {
+    RemoveLast: 'command/storage/delete/last'
   }
-
 };
 
 var cli = cliargs([
@@ -57,16 +58,17 @@ Gopro.prototype.fetch = function(filename, callback) {
             process.stdout.cursorTo(0);
       });
 
-      death(function(signall, err){
-        fs.unlink(self.options.path + filename);
-        throw new Error('download was interrupted');
-      });
-
       response.pipe(bar);
       response.pipe(file);
       file.on('finish', function() {
-          callback();
           console.log();
+          request(self.options.ip + api.pre + api.Other.RemoveLast, function(error) {
+            if (error) {
+              console.error(error);
+            } else {
+              callback();
+            }
+          });
       });
 
   }).on('error', function(error) {
@@ -76,6 +78,10 @@ Gopro.prototype.fetch = function(filename, callback) {
   });
 };
 
+Gopro.prototype.fuck = function(filename, callback) {
+  console.log(filename);
+  callback();
+};
 
 Gopro.prototype.sync = function() {
     var self = this;
@@ -92,11 +98,11 @@ Gopro.prototype.sync = function() {
         return console.error(error.message);
       }
 
-      //
+      // ...
       var html = cheerio.load(body)('a.link[href]');
       var filenames = [];
       html.each(function(i) {
-        filenames.push(html[i].attribs.href);
+          filenames.unshift(html[i].attribs.href);
       });
 
       // ...
@@ -108,7 +114,7 @@ Gopro.prototype.sync = function() {
           next();
         }
       }, function() {
-        console.log("Finished!".blue);
+        console.log("\nFinished!".blue);
         return;
       });
     });
